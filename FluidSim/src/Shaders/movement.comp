@@ -1,0 +1,102 @@
+
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+struct Cell
+{
+    uint type;
+    uint durability;
+    uint padding0;
+    uint padding1;
+};
+
+layout(std430, binding = 0) readonly buffer CurrentGrid
+{
+    Cell cells[];
+};
+
+layout(std430, binding = 1) writeonly buffer MovementGrid
+{
+    uint destinations[];
+};
+
+uniform int gridWidth;
+uniform int gridHeight;
+uniform int frame;
+
+bool InBounds(ivec2 p)
+{
+    return p.x >= 0 && p.x < gridWidth && p.y >= 0 && p.y < gridHeight;
+}
+
+uint IndexOf(ivec2 p)
+{
+    return uint(p.y * gridWidth + p.x);
+}
+
+bool CanMoveInto(ivec2 p, uint type)
+{
+    if (!InBounds(p))
+        return false;
+
+    uint targetType = cells[IndexOf(p)].type;
+
+    return targetType == 0u || (type == 4u && targetType == 2u);
+}
+
+void main()
+{
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+
+    if (!InBounds(p))
+        return;
+
+    uint index = IndexOf(p);
+    uint type = cells[index].type;
+
+    destinations[index] = index;
+
+    if (type != 2u && type != 4u)
+        return;
+
+    ivec2 down = p + ivec2(0, -1);
+
+    if (CanMoveInto(down, type))
+    {
+        destinations[index] = IndexOf(down);
+        return;
+    }
+
+    bool leftFirst = ((uint(p.x) + uint(p.y) + uint(frame)) & 1u) == 0u;
+
+    ivec2 diagonalA = p + ivec2(leftFirst ? -1 : 1, -1);
+    ivec2 diagonalB = p + ivec2(leftFirst ? 1 : -1, -1);
+
+    if (CanMoveInto(diagonalA, type))
+    {
+        destinations[index] = IndexOf(diagonalA);
+        return;
+    }
+
+    if (CanMoveInto(diagonalB, type))
+    {
+        destinations[index] = IndexOf(diagonalB);
+        return;
+    }
+
+    if (type == 2u)
+    {
+        ivec2 sideA = p + ivec2(leftFirst ? -1 : 1, 0);
+        ivec2 sideB = p + ivec2(leftFirst ? 1 : -1, 0);
+
+        if (CanMoveInto(sideA, type))
+        {
+            destinations[index] = IndexOf(sideA);
+            return;
+        }
+
+        if (CanMoveInto(sideB, type))
+            destinations[index] = IndexOf(sideB);
+    }
+}

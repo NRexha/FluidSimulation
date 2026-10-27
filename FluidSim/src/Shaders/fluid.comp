@@ -1,0 +1,161 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+struct Cell
+{
+    uint type;
+    uint durability;
+    uint padding0;
+    uint padding1;
+};
+
+layout(std430, binding = 0) readonly buffer CurrentGrid
+{
+    Cell cells[];
+};
+
+layout(std430, binding = 1) readonly buffer MovementGrid
+{
+    uint destinations[];
+};
+
+layout(std430, binding = 2) writeonly buffer NextGrid
+{
+    Cell nextCells[];
+};
+
+uniform int gridWidth;
+uniform int gridHeight;
+uniform int frame;
+
+bool InBounds(ivec2 p)
+{
+    return p.x >= 0 && p.x < gridWidth && p.y >= 0 && p.y < gridHeight;
+}
+
+uint IndexOf(ivec2 p)
+{
+    return uint(p.y * gridWidth + p.x);
+}
+
+bool IsWater(ivec2 p)
+{
+    return InBounds(p) && cells[IndexOf(p)].type == 2u;
+}
+
+uint Priority(uint index)
+{
+    uint value = index ^ (uint(frame) * 747796405u);
+    value ^= value >> 16;
+    value *= 2246822519u;
+    value ^= value >> 13;
+    value *= 3266489917u;
+    value ^= value >> 16;
+    return value;
+}
+
+uint Winner(ivec2 p)
+{
+    uint target = IndexOf(p);
+    uint winner = 0xffffffffu;
+    uint bestPriority = 0xffffffffu;
+
+    ivec2 candidates[5] = ivec2[5](p + ivec2(0, 1), p + ivec2(-1, 1), p + ivec2(1, 1), p + ivec2(-1, 0), p + ivec2(1, 0));
+
+    for (int i = 0; i < 5; i++)
+    {
+        ivec2 source = candidates[i];
+
+        if (!InBounds(source))
+            continue;
+
+        uint sourceIndex = IndexOf(source);
+        uint type = cells[sourceIndex].type;
+
+        if (type != 2u && type != 4u)
+            continue;
+
+        if (destinations[sourceIndex] != target)
+            continue;
+
+        uint priority = Priority(sourceIndex);
+
+        if (priority < bestPriority)
+        {
+            bestPriority = priority;
+            winner = sourceIndex;
+        }
+    }
+
+    return winner;
+}
+
+void main()
+{
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+
+    if (!InBounds(p))
+        return;
+
+    uint index = IndexOf(p);
+    Cell cell = cells[index];
+
+    nextCells[index] = cell;
+
+    if (cell.type == 1u)
+        return;
+
+    if (cell.type == 3u)
+    {
+        bool touchingWater = IsWater(p + ivec2(1, 0)) || IsWater(p + ivec2(-1, 0)) || IsWater(p + ivec2(0, 1)) || IsWater(p + ivec2(0, -1));
+
+        if (touchingWater)
+        {
+            if (cell.durability <= 1u)
+            {
+                nextCells[index].type = 4u;
+                nextCells[index].durability = 0u;
+            }
+            else
+            {
+                nextCells[index].durability = cell.durability - 1u;
+            }
+        }
+
+        return;
+    }
+
+    if (cell.type == 4u && p.y == 0)
+    {
+        nextCells[index].type = 0u;
+        nextCells[index].durability = 0u;
+        return;
+    }
+
+    if (cell.type == 2u || cell.type == 4u)
+    {
+        uint destination = destinations[index];
+
+        if (destination != index)
+        {
+            ivec2 target = ivec2(
+                int(destination % uint(gridWidth)),
+                int(destination / uint(gridWidth))
+            );
+
+            if (Winner(target) == index)
+            {
+                nextCells[index].type = 0u;
+                nextCells[index].durability = 0u;
+            }
+        }
+
+        return;
+    }
+
+    uint incoming = Winner(p);
+
+    if (incoming != 0xffffffffu)
+        nextCells[index] = cells[incoming];
+}

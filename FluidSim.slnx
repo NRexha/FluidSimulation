@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="FluidSim/FluidSim.vcxproj" Id="a6265f8c-cfb9-484a-af9a-a1da08213bcb" />
+</Solution>
