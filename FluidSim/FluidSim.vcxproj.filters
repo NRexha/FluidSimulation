@@ -48,4 +48,9 @@
     <None Include="src\Shaders\fluid.frag" />
     <None Include="src\Shaders\movement.comp" />
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="src\Assets\initial_map.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
 </Project>

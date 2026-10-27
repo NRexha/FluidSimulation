@@ -2,6 +2,7 @@
 
 #include <glad/glad.h>
 #include "../Rendering/Shader.h"
+#include <vector>
 
 class FluidSimulation
 {
@@ -47,6 +48,7 @@ private:
     int readIndex = 0;
     unsigned int frame = 0;
 
+    bool LoadInitialMap(const char* path, std::vector<Cell>& cells);
     void SetCell(int x, int y, CellType type, int radius);
     void DrawLine(int x0, int y0, int x1, int y1, CellType type, int radius);
 };

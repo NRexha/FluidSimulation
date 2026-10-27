@@ -1,4 +1,3 @@
-
 #version 430 core
 
 in vec2 uv;
@@ -21,11 +20,11 @@ layout(std430, binding = 0) readonly buffer Grid
 uniform vec2 gridSize;
 
 const vec3 BackgroundColor = vec3(0.055, 0.070, 0.100);
-const vec3 WallColor = vec3(0.65, 0.70, 0.77);
+const vec3 WallColor = vec3(0.239, 0.227, 0.341);
 const vec3 WaterColor = vec3(0.12, 0.55, 0.92);
 
-const vec3 SoilColor = vec3(0.42, 0.25, 0.13);
-const vec3 LooseSoilColor = vec3(0.55, 0.34, 0.18);
+const vec3 SoilColor = vec3(0.949, 0.337, 0.306);
+const vec3 LooseSoilColor = vec3(0.612, 0.153, 0.114);
 
 bool InBounds(ivec2 p)
 {

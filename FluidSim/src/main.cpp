@@ -46,10 +46,8 @@ int main()
         return -1;
     }
 
-    std::cout << "OpenGL initialized successfully!\n";
     std::cout << "GPU: " << glGetString(GL_RENDERER) << '\n';
     std::cout << "OpenGL: " << glGetString(GL_VERSION) << '\n';
-    std::cout << "GLSL: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n\n";
 
     try
     {

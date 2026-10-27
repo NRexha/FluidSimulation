@@ -1,5 +1,11 @@
 #include "FluidSimulation.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+#include <algorithm>
+#include <cmath>
+#include <iostream>
 #include <vector>
 
 namespace
@@ -8,6 +14,7 @@ namespace
     constexpr int EraserRadius = 5;
     constexpr int WaterRadius = 2;
     constexpr int SoilRadius = 2;
+    constexpr unsigned char MaterialThreshold = 64;
 }
 
 FluidSimulation::FluidSimulation()
@@ -17,6 +24,8 @@ FluidSimulation::FluidSimulation()
 {
     std::vector<Cell> cells(GridWidth * GridHeight, { Empty, 0, { 0, 0 } });
     std::vector<unsigned int> destinations(GridWidth * GridHeight);
+
+    LoadInitialMap("src/Assets/initial_map.png", cells);
 
     for (unsigned int i = 0; i < destinations.size(); i++)
         destinations[i] = i;
@@ -45,12 +54,58 @@ FluidSimulation::~FluidSimulation()
     glDeleteVertexArrays(1, &fullscreenVAO);
 }
 
+bool FluidSimulation::LoadInitialMap(const char* path, std::vector<Cell>& cells)
+{
+    int imageWidth = 0;
+    int imageHeight = 0;
+    int channels = 0;
+
+    unsigned char* pixels = stbi_load(path, &imageWidth, &imageHeight, &channels, 4);
+
+    if (!pixels)
+    {
+        std::cerr << "Failed to load initial map: " << path << " (" << stbi_failure_reason() << ")\n";
+        return false;
+    }
+
+    for (int y = 0; y < GridHeight; y++)
+    {
+        for (int x = 0; x < GridWidth; x++)
+        {
+            int sourceX = x * imageWidth / GridWidth;
+            int sourceY = (GridHeight - 1 - y) * imageHeight / GridHeight;
+            int pixelIndex = (sourceY * imageWidth + sourceX) * 4;
+
+            unsigned char red = pixels[pixelIndex];
+            unsigned char green = pixels[pixelIndex + 1];
+
+            Cell cell = { Empty, 0, { 0, 0 } };
+
+            if (red >= MaterialThreshold)
+            {
+                cell.type = Wall;
+            }
+            else if (green >= MaterialThreshold)
+            {
+                cell.type = Soil;
+                cell.durability = 12u;
+            }
+
+            cells[y * GridWidth + x] = cell;
+        }
+    }
+
+    stbi_image_free(pixels);
+    return true;
+}
+
 void FluidSimulation::SetCell(int x, int y, CellType type, int radius)
 {
-    Cell cell = {
-    static_cast<unsigned int>(type),
-    type == Soil ? 12u : 0u,
-    { 0, 0 }
+    Cell cell = 
+    {
+        static_cast<unsigned int>(type),
+        type == Soil ? 12u : 0u,
+        { 0, 0 }
     };
 
     for (int offsetY = -radius; offsetY <= radius; offsetY++)
@@ -71,6 +126,7 @@ void FluidSimulation::SetCell(int x, int y, CellType type, int radius)
             if (type == Water || type == Soil)
             {
                 Cell existing;
+
                 glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffers[readIndex]);
                 glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, index * sizeof(Cell), sizeof(Cell), &existing);
 
@@ -108,11 +164,7 @@ void FluidSimulation::DrawLine(int x0, int y0, int x1, int y1, CellType type, in
     }
 }
 
-void FluidSimulation::ApplyBrush(
-    int x0, int y0,
-    int x1, int y1,
-    CellType type,
-    int radius)
+void FluidSimulation::ApplyBrush(int x0, int y0, int x1, int y1, CellType type,int radius)
 {
     DrawLine(x0, y0, x1, y1, type, radius);
 }
@@ -159,7 +211,6 @@ void FluidSimulation::Render(int width, int height)
 
     renderShader.Use();
     renderShader.SetVec2("gridSize", static_cast<float>(GridWidth), static_cast<float>(GridHeight));
-
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffers[readIndex]);
 
