@@ -20,7 +20,8 @@ namespace
 FluidSimulation::FluidSimulation()
     : movementShader("src/Shaders/movement.comp"),
     computeShader("src/Shaders/fluid.comp"),
-    renderShader("src/Shaders/fullscreen.vert", "src/Shaders/fluid.frag")
+    renderShader("src/Shaders/fullscreen.vert", "src/Shaders/fluid.frag"),
+    postprocessShader("src/Shaders/fullscreen.vert", "src/Shaders/postprocess.frag")
 {
     std::vector<Cell> cells(GridWidth * GridHeight, { Empty, 0, { 0, 0 } });
     std::vector<unsigned int> destinations(GridWidth * GridHeight);
@@ -52,6 +53,10 @@ FluidSimulation::~FluidSimulation()
     glDeleteBuffers(2, buffers);
     glDeleteBuffers(1, &movementBuffer);
     glDeleteVertexArrays(1, &fullscreenVAO);
+
+    glDeleteTextures(1, &sceneTexture);
+    glDeleteTextures(1, &waterMaskTexture);
+    glDeleteFramebuffers(1, &framebuffer);
 }
 
 bool FluidSimulation::LoadInitialMap(const char* path, std::vector<Cell>& cells)
@@ -101,7 +106,7 @@ bool FluidSimulation::LoadInitialMap(const char* path, std::vector<Cell>& cells)
 
 void FluidSimulation::SetCell(int x, int y, CellType type, int radius)
 {
-    Cell cell = 
+    Cell cell =
     {
         static_cast<unsigned int>(type),
         type == Soil ? 12u : 0u,
@@ -164,7 +169,7 @@ void FluidSimulation::DrawLine(int x0, int y0, int x1, int y1, CellType type, in
     }
 }
 
-void FluidSimulation::ApplyBrush(int x0, int y0, int x1, int y1, CellType type,int radius)
+void FluidSimulation::ApplyBrush(int x0, int y0, int x1, int y1, CellType type, int radius)
 {
     DrawLine(x0, y0, x1, y1, type, radius);
 }
@@ -202,11 +207,60 @@ void FluidSimulation::Update()
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
 }
 
+void FluidSimulation::EnsureRenderTargets(int width, int height)
+{
+    if (width == renderWidth && height == renderHeight)
+        return;
+
+    renderWidth = width;
+    renderHeight = height;
+
+    if (framebuffer == 0)
+    {
+        glGenFramebuffers(1, &framebuffer);
+        glGenTextures(1, &sceneTexture);
+        glGenTextures(1, &waterMaskTexture);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    glBindTexture(GL_TEXTURE_2D, sceneTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sceneTexture, 0);
+
+    glBindTexture(GL_TEXTURE_2D, waterMaskTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, waterMaskTexture, 0);
+
+    const GLenum attachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+    glDrawBuffers(2, attachments);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cerr << "Post-processing framebuffer is incomplete.\n";
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 void FluidSimulation::Render(int width, int height)
 {
     if (width <= 0 || height <= 0)
         return;
 
+    EnsureRenderTargets(width, height);
+
+    const GLenum attachments[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glDrawBuffers(2, attachments);
     glViewport(0, 0, width, height);
 
     renderShader.Use();
@@ -219,4 +273,32 @@ void FluidSimulation::Render(int width, int height)
 
     glBindVertexArray(0);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, width, height);
+
+    glDisable(GL_DEPTH_TEST);
+
+    postprocessShader.Use();
+    postprocessShader.SetInt("sceneTexture", 0);
+    postprocessShader.SetInt("waterMaskTexture", 1);
+    postprocessShader.SetVec2("texelSize", 1.0f / width, 1.0f / height);
+    postprocessShader.SetFloat("blurRadius", 4.0f);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, sceneTexture);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, waterMaskTexture);
+
+    glBindVertexArray(fullscreenVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    glBindVertexArray(0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }

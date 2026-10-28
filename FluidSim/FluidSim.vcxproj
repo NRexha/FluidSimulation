@@ -169,6 +169,7 @@ shell32.lib;</AdditionalDependencies>
     <None Include="src\Shaders\fluid.frag" />
     <None Include="src\Shaders\fullscreen.vert" />
     <None Include="src\Shaders\movement.comp" />
+    <None Include="src\Shaders\postprocess.frag" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="src\Assets\initial_map.png" />
