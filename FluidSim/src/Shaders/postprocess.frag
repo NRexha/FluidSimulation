@@ -1,5 +1,10 @@
 #version 460 core
 
+//This postprocess is used to get (or at least try to get) a continous flow for the water using a blur pass
+//on my monitor, it actually looks really good without this postprocess however it's quite ugly when recorded, thats why I added this
+//if you want to disable it, just replace the line with this: 
+//FragColor = vec4(scene.rgb, scene.a);
+
 in vec2 uv;
 out vec4 FragColor;
 
@@ -50,8 +55,8 @@ void main()
     float originalMask = texture(waterMaskTexture, uv).r;
     float blurredMask = GaussianBlur(uv);
 
-    float coverage = smoothstep(0.12, 0.3, blurredMask);
-    coverage = mix(originalMask, coverage, 0.75);
+    float coverage = smoothstep(0.01, 0.05, blurredMask);
+    coverage = mix(originalMask, coverage, .85);
 
     vec3 waterColor = GetWaterColor(uv.y);
     vec3 color = mix(scene.rgb, waterColor, coverage);

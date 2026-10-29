@@ -23,6 +23,7 @@ FluidSimulation::FluidSimulation()
     renderShader("src/Shaders/fullscreen.vert", "src/Shaders/fluid.frag"),
     postprocessShader("src/Shaders/fullscreen.vert", "src/Shaders/postprocess.frag")
 {
+    //initialize with empty cells
     std::vector<Cell> cells(GridWidth * GridHeight, { Empty, 0, { 0, 0 } });
     std::vector<unsigned int> destinations(GridWidth * GridHeight);
 
@@ -31,6 +32,8 @@ FluidSimulation::FluidSimulation()
     for (unsigned int i = 0; i < destinations.size(); i++)
         destinations[i] = i;
 
+
+    //double buffer setup
     glGenBuffers(2, buffers);
 
     for (int i = 0; i < 2; i++)
@@ -73,6 +76,9 @@ bool FluidSimulation::LoadInitialMap(const char* path, std::vector<Cell>& cells)
         return false;
     }
 
+
+    //sample base map and inject it to the simulation
+    //r=wall, r=soil
     for (int y = 0; y < GridHeight; y++)
     {
         for (int x = 0; x < GridWidth; x++)
@@ -104,14 +110,12 @@ bool FluidSimulation::LoadInitialMap(const char* path, std::vector<Cell>& cells)
     return true;
 }
 
+
+//where i repare the material data that will be written into the grid
+//for instance, soil receives durability, other materials start at zero
 void FluidSimulation::SetCell(int x, int y, CellType type, int radius)
 {
-    Cell cell =
-    {
-        static_cast<unsigned int>(type),
-        type == Soil ? 12u : 0u,
-        { 0, 0 }
-    };
+    Cell cell = { static_cast<unsigned int>(type), type == Soil ? 12u : 0u, { 0, 0 }};
 
     for (int offsetY = -radius; offsetY <= radius; offsetY++)
     {
@@ -147,6 +151,9 @@ void FluidSimulation::SetCell(int x, int y, CellType type, int radius)
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
+
+//find the larger axis distance to determine how many brush stamps are needed to cover the line without gaps.
+//dont think it's the best way, but it's a fast way to fix it
 void FluidSimulation::DrawLine(int x0, int y0, int x1, int y1, CellType type, int radius)
 {
     int dx = std::abs(x1 - x0);
@@ -277,13 +284,15 @@ void FluidSimulation::Render(int width, int height)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, width, height);
 
-    glDisable(GL_DEPTH_TEST);
+
+    
+    glDisable(GL_DEPTH_TEST); //fullscreen postprocess pass does not require depth testing :D
 
     postprocessShader.Use();
     postprocessShader.SetInt("sceneTexture", 0);
     postprocessShader.SetInt("waterMaskTexture", 1);
     postprocessShader.SetVec2("texelSize", 1.0f / width, 1.0f / height);
-    postprocessShader.SetFloat("blurRadius", 4.0f);
+    postprocessShader.SetFloat("blurRadius", 2.0f);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, sceneTexture);

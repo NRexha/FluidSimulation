@@ -4,7 +4,8 @@
 #include <sstream>
 #include <stdexcept>
 
-std::string Shader::ReadFile(const std::string& path) {
+std::string Shader::ReadFile(const std::string& path) 
+{
     std::ifstream file(path);
     if (!file.is_open()) throw std::runtime_error("Could not open shader: " + path);
 
@@ -13,7 +14,8 @@ std::string Shader::ReadFile(const std::string& path) {
     return buffer.str();
 }
 
-GLuint Shader::CompileShader(GLenum type, const std::string& source, const std::string& path) {
+GLuint Shader::CompileShader(GLenum type, const std::string& source, const std::string& path) 
+{
     GLuint shader = glCreateShader(type);
     const char* src = source.c_str();
     glShaderSource(shader, 1, &src, nullptr);
@@ -22,7 +24,8 @@ GLuint Shader::CompileShader(GLenum type, const std::string& source, const std::
     GLint success = GL_FALSE;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
 
-    if (!success) {
+    if (!success) 
+    {
         GLint length = 0;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
         std::string log(length > 0 ? length : 1, '\0');
@@ -34,7 +37,8 @@ GLuint Shader::CompileShader(GLenum type, const std::string& source, const std::
     return shader;
 }
 
-void Shader::LinkProgram(GLuint shaderA, GLuint shaderB) {
+void Shader::LinkProgram(GLuint shaderA, GLuint shaderB) 
+{
     programID = glCreateProgram();
     glAttachShader(programID, shaderA);
     if (shaderB) glAttachShader(programID, shaderB);
@@ -44,7 +48,8 @@ void Shader::LinkProgram(GLuint shaderA, GLuint shaderB) {
     GLint success = GL_FALSE;
     glGetProgramiv(programID, GL_LINK_STATUS, &success);
 
-    if (!success) {
+    if (!success) 
+    {
         GLint length = 0;
         glGetProgramiv(programID, GL_INFO_LOG_LENGTH, &length);
         std::string log(length > 0 ? length : 1, '\0');
@@ -60,37 +65,45 @@ void Shader::LinkProgram(GLuint shaderA, GLuint shaderB) {
     if (shaderB) glDeleteShader(shaderB);
 }
 
-Shader::Shader(const std::string& computePath) {
+Shader::Shader(const std::string& computePath) 
+{
     GLuint compute = CompileShader(GL_COMPUTE_SHADER, ReadFile(computePath), computePath);
-    try {
+    try 
+    {
         LinkProgram(compute);
     }
-    catch (...) {
+    catch (...) 
+    {
         glDeleteShader(compute);
         throw;
     }
 }
 
-Shader::Shader(const std::string& vertexPath, const std::string& fragmentPath) {
+Shader::Shader(const std::string& vertexPath, const std::string& fragmentPath) 
+{
     GLuint vertex = CompileShader(GL_VERTEX_SHADER, ReadFile(vertexPath), vertexPath);
     GLuint fragment = 0;
 
-    try {
+    try 
+    {
         fragment = CompileShader(GL_FRAGMENT_SHADER, ReadFile(fragmentPath), fragmentPath);
         LinkProgram(vertex, fragment);
     }
-    catch (...) {
+    catch (...) 
+    {
         if (vertex) glDeleteShader(vertex);
         if (fragment) glDeleteShader(fragment);
         throw;
     }
 }
 
-Shader::~Shader() {
+Shader::~Shader() 
+{
     if (programID) glDeleteProgram(programID);
 }
 
-void Shader::Use() const {
+void Shader::Use() const 
+{
     glUseProgram(programID);
 }
 
@@ -103,12 +116,14 @@ void Shader::SetInt(const char* name, int value) const
 }
 
 
-void Shader::SetFloat(const char* name, float value) const {
+void Shader::SetFloat(const char* name, float value) const 
+{
     GLint location = glGetUniformLocation(programID, name);
     if (location != -1) glUniform1f(location, value);
 }
 
-void Shader::SetVec2(const char* name, float x, float y) const {
+void Shader::SetVec2(const char* name, float x, float y) const 
+{
     GLint location = glGetUniformLocation(programID, name);
     if (location != -1) glUniform2f(location, x, y);
 }

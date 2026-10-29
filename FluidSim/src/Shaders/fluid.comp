@@ -2,6 +2,8 @@
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
+//the same cell layout shared with the CPU and movement.comp
+//padding keeps the structure aligned for std430 buffer storage
 struct Cell
 {
     uint type;
@@ -44,6 +46,8 @@ bool IsWater(ivec2 p)
     return InBounds(p) && cells[IndexOf(p)].type == 2u;
 }
 
+//deterministic random priority for a cell
+//the frame number changes the priorities between simulation frames, helping resolve competing movement proposals without a set direcion
 uint Priority(uint index)
 {
     uint value = index ^ (uint(frame) * 747796405u);
@@ -55,6 +59,9 @@ uint Priority(uint index)
     return value;
 }
 
+
+//finds which cell wins the right to occupy the target position
+//only nearby cells that proposed moving into this target are considered
 uint Winner(ivec2 p)
 {
     uint target = IndexOf(p);
@@ -139,10 +146,7 @@ void main()
 
         if (destination != index)
         {
-            ivec2 target = ivec2(
-                int(destination % uint(gridWidth)),
-                int(destination / uint(gridWidth))
-            );
+            ivec2 target = ivec2(int(destination % uint(gridWidth)), int(destination / uint(gridWidth)));
 
             if (Winner(target) == index)
             {
