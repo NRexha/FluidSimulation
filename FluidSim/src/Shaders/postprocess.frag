@@ -3,7 +3,7 @@
 //This postprocess is used to get (or at least try to get) a continous flow for the water using a blur pass
 //on my monitor, it actually looks really good without this postprocess however it's quite ugly when recorded, thats why I added this
 //if you want to disable it, just replace the line with this: 
-//FragColor = vec4(scene.rgb, scene.a);
+//FragColor = scene;
 
 in vec2 uv;
 out vec4 FragColor;
